@@ -11,6 +11,7 @@ callbacks = {
     "generate_node_id": None,
     "on_single_selection_changed": None,
     "on_graph_mutated": None,
+    "on_viewport_changed": None,
 }
 
 g = {
@@ -100,8 +101,8 @@ render = {
     "background_color": "black",
     "node_outline_color": "white",
     "node_fill_color": "",
-    "selected_fill_color": "dark green",
-    "selected_inner_color": "green",
+    "selected_fill_color": "#1dc14f",
+    "selected_inner_color": "#79ff9a",
     "edge_color": "white",
     "marquee_outline_color": "white",
     "marquee_dash": [4, 4],
@@ -119,9 +120,9 @@ render = {
     "drag_threshold": 4,
     "quantize_step": 20,
     "materialized_outline_color": "#f2f2f2",
-    "unmaterialized_outline_color": "#666666",
-    "materialized_fill_color": "#163f24",
-    "unmaterialized_fill_color": "#151515",
+    "unmaterialized_outline_color": "#3a3a3a",
+    "materialized_fill_color": "#13361d",
+    "unmaterialized_fill_color": "#101010",
     "materialized_edge_color": "#dcdcdc",
     "unmaterialized_edge_color": "#5f5f5f",
     "node_title_color": "#f4f4f4",
@@ -201,6 +202,7 @@ def reset_runtime():
     callbacks["generate_node_id"] = None
     callbacks["on_single_selection_changed"] = None
     callbacks["on_graph_mutated"] = None
+    callbacks["on_viewport_changed"] = None
 
     g["mode"] = "IDLE"
     g["selected_node_id"] = None
@@ -339,6 +341,22 @@ def set_callback(name, fn):
     """Register an optional host callback."""
 
     callbacks[name] = fn
+
+
+def set_viewport(offset_x, offset_y):
+    """Set viewport offsets."""
+
+    viewport["offset_x"] = int(offset_x)
+    viewport["offset_y"] = int(offset_y)
+
+
+def get_viewport():
+    """Return current viewport offsets."""
+
+    return {
+        "x": viewport["offset_x"],
+        "y": viewport["offset_y"],
+    }
 
 
 def bind_canvas_events():
@@ -729,6 +747,11 @@ def apply_effects():
         elif effect_type == "pan-viewport":
             viewport["offset_x"] += payload["dx"]
             viewport["offset_y"] += payload["dy"]
+            if callbacks["on_viewport_changed"] is not None:
+                callbacks["on_viewport_changed"](
+                    viewport["offset_x"],
+                    viewport["offset_y"],
+                )
         elif effect_type == "move-group":
             move_group_by(payload["node_ids"], payload["dx"], payload["dy"])
             changed_graph = True

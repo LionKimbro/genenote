@@ -22,6 +22,10 @@ def ensure_project_structure(project_dir):
                 "project_id": str(uuid.uuid4()),
                 "created_at": int(time.time()),
                 "version": APP_VERSION,
+                "viewport": {
+                    "x": 0,
+                    "y": 0,
+                },
                 "config": {
                     "attachments_subdir": "attachments",
                 },
@@ -81,6 +85,38 @@ def write_project_graph(project_dir, graph_data):
     ensure_project_structure(project_dir)
     write_json_file(get_nodes_file(project_dir), build_nodes_coordinates_map(graph_data))
     write_json_file(get_links_file(project_dir), build_links_payload(graph_data))
+
+
+def load_project_metadata(project_dir):
+    """Load project.json metadata."""
+
+    ensure_project_structure(project_dir)
+    return read_json_file(get_project_file(project_dir), {})
+
+
+def load_project_viewport(project_dir):
+    """Return the stored viewport offsets."""
+
+    project_data = load_project_metadata(project_dir)
+    viewport = project_data.get("viewport", {})
+    return {
+        "x": int(viewport.get("x", 0)),
+        "y": int(viewport.get("y", 0)),
+    }
+
+
+def save_project_viewport(project_dir, offset_x, offset_y):
+    """Persist the viewport offsets in project.json."""
+
+    ensure_project_structure(project_dir)
+    project_data = read_json_file(get_project_file(project_dir), {})
+    project_data["viewport"] = {
+        "x": int(offset_x),
+        "y": int(offset_y),
+    }
+    if "config" not in project_data:
+        project_data["config"] = {"attachments_subdir": "attachments"}
+    write_json_file(get_project_file(project_dir), project_data)
 
 
 def build_nodes_coordinates_map(graph_data):

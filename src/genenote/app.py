@@ -2,6 +2,7 @@
 
 import os
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
@@ -31,6 +32,7 @@ def create_state(execroot):
     return {
         "execroot": Path(execroot),
         "project_dir": project_dir,
+        "project_viewport": projectio.load_project_viewport(project_dir),
         "graph_data": projectio.load_project_graph(project_dir),
         "root": None,
         "window": None,
@@ -107,9 +109,9 @@ def _build_layout(state):
     pane.add(browser_frame, weight=3)
     pane.add(detail_frame, weight=2)
 
-    browser_frame.rowconfigure(1, weight=1)
+    browser_frame.rowconfigure(0, weight=1)
     browser_frame.columnconfigure(0, weight=1)
-    detail_frame.rowconfigure(2, weight=1)
+    detail_frame.rowconfigure(1, weight=1)
     detail_frame.columnconfigure(0, weight=1)
 
     canvas = tk.Canvas(browser_frame, highlightthickness=0)
@@ -125,7 +127,7 @@ def _build_layout(state):
     form = ttk.Frame(detail_frame)
     form.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
     form.columnconfigure(0, weight=1)
-    form.rowconfigure(5, weight=1)
+    form.rowconfigure(6, weight=1)
 
     title_label = ttk.Label(form, text="Title")
     title_label.grid(row=0, column=0, sticky="w")
@@ -142,8 +144,12 @@ def _build_layout(state):
     )
     materialize_button.grid(row=2, column=0, sticky="w", pady=(0, 10))
 
+    created_var = tk.StringVar()
+    created_label = ttk.Label(form, textvariable=created_var)
+    created_label.grid(row=3, column=0, sticky="w", pady=(0, 10))
+
     path_row = ttk.Frame(form)
-    path_row.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+    path_row.grid(row=4, column=0, sticky="ew", pady=(0, 10))
     path_row.columnconfigure(0, weight=1)
 
     folder_path_var = tk.StringVar()
@@ -164,15 +170,32 @@ def _build_layout(state):
     )
     open_path_button.grid(row=0, column=2, padx=(8, 0))
 
-    notes_label = ttk.Label(form, text="Notes")
-    notes_label.grid(row=4, column=0, sticky="w")
+    notes_header = ttk.Frame(form)
+    notes_header.grid(row=5, column=0, sticky="w")
+
+    notes_label = ttk.Label(notes_header, text="Notes")
+    notes_label.grid(row=0, column=0, sticky="w")
+
+    copy_notes_button = ttk.Button(
+        notes_header,
+        text="copy",
+        command=lambda: copy_notes_path(state),
+    )
+    copy_notes_button.grid(row=0, column=1, padx=(8, 0))
+
+    open_notes_button = ttk.Button(
+        notes_header,
+        text="open",
+        command=lambda: open_notes_path(state),
+    )
+    open_notes_button.grid(row=0, column=2, padx=(8, 0))
 
     notes_text = tk.Text(form, height=10, wrap="word")
-    notes_text.grid(row=5, column=0, sticky="nsew", pady=(4, 10))
+    notes_text.grid(row=6, column=0, sticky="nsew", pady=(4, 10))
+    notes_text.bind("<Control-Return>", lambda event: handle_notes_save_shortcut(state, event))
 
     attachments_header = ttk.Frame(form)
-    attachments_header.grid(row=6, column=0, sticky="ew")
-    attachments_header.columnconfigure(0, weight=1)
+    attachments_header.grid(row=7, column=0, sticky="ew")
 
     attachments_label = ttk.Label(attachments_header, text="Attachments")
     attachments_label.grid(row=0, column=0, sticky="w")
@@ -192,7 +215,7 @@ def _build_layout(state):
     open_attachments_folder_button.grid(row=0, column=2, padx=(8, 0))
 
     attachments_frame = ttk.Frame(form)
-    attachments_frame.grid(row=7, column=0, sticky="nsew", pady=(4, 10))
+    attachments_frame.grid(row=8, column=0, sticky="nsew", pady=(4, 10))
     attachments_frame.columnconfigure(0, weight=1)
     attachments_frame.rowconfigure(0, weight=1)
 
@@ -228,7 +251,7 @@ def _build_layout(state):
         text="save",
         command=lambda: save_selected_node(state),
     )
-    save_button.grid(row=8, column=0, sticky="w")
+    save_button.grid(row=9, column=0, sticky="w")
 
     state["status_text"] = tk.StringVar(master=window, value="Ready.")
     status_label = ttk.Label(main, textvariable=state["status_text"])
@@ -242,9 +265,14 @@ def _build_layout(state):
             "title_var": title_var,
             "title_entry": title_entry,
             "materialize_button": materialize_button,
+            "created_var": created_var,
+            "created_label": created_label,
             "path_row": path_row,
             "folder_path_var": folder_path_var,
+            "notes_header": notes_header,
             "notes_label": notes_label,
+            "copy_notes_button": copy_notes_button,
+            "open_notes_button": open_notes_button,
             "notes_text": notes_text,
             "attachments_label": attachments_label,
             "attachments_header": attachments_header,
@@ -265,6 +293,10 @@ def _configure_nodebrowser(state):
     canvas = state["widgets"]["canvas"]
     nodebrowser.reset_runtime()
     nodebrowser.use_graph_data(state["graph_data"])
+    nodebrowser.set_viewport(
+        state["project_viewport"]["x"],
+        state["project_viewport"]["y"],
+    )
     nodebrowser.use_canvas(canvas)
     nodebrowser.set_callback("generate_node_id", lambda: generate_node_id(state))
     nodebrowser.set_callback(
@@ -274,6 +306,10 @@ def _configure_nodebrowser(state):
     nodebrowser.set_callback(
         "on_graph_mutated",
         lambda: handle_graph_mutated(state),
+    )
+    nodebrowser.set_callback(
+        "on_viewport_changed",
+        lambda offset_x, offset_y: handle_viewport_changed(state, offset_x, offset_y),
     )
 
 
@@ -291,6 +327,14 @@ def handle_graph_mutated(state):
     projectio.write_project_graph(state["project_dir"], state["graph_data"])
     refresh_detail_pane(state)
     set_status(state, "Graph updated.")
+
+
+def handle_viewport_changed(state, offset_x, offset_y):
+    """Persist viewport movement."""
+
+    state["project_viewport"]["x"] = offset_x
+    state["project_viewport"]["y"] = offset_y
+    projectio.save_project_viewport(state["project_dir"], offset_x, offset_y)
 
 
 def refresh_detail_pane(state):
@@ -314,12 +358,14 @@ def refresh_detail_pane(state):
 
     if node.get("materialized"):
         detail = projectio.load_materialized_node_detail(state["project_dir"], node_id)
+        widgets["created_var"].set(format_created_text(detail["node_json"].get("created_at")))
         widgets["folder_path_var"].set(detail["folder_path"])
         set_text_widget(widgets["notes_text"], detail["notes_text"])
         populate_attachments(state, detail["attachments"])
         widgets["materialize_button"].grid_remove()
+        widgets["created_label"].grid()
         widgets["path_row"].grid()
-        widgets["notes_label"].grid()
+        widgets["notes_header"].grid()
         widgets["notes_text"].grid()
         widgets["attachments_header"].grid()
         widgets["attachments_frame"].grid()
@@ -327,12 +373,14 @@ def refresh_detail_pane(state):
         widgets["save_button"].grid()
         widgets["notes_text"].configure(state="normal")
     else:
+        widgets["created_var"].set("")
         widgets["folder_path_var"].set("")
         set_text_widget(widgets["notes_text"], "")
         populate_attachments(state, [])
         widgets["materialize_button"].grid()
+        widgets["created_label"].grid_remove()
         widgets["path_row"].grid_remove()
-        widgets["notes_label"].grid_remove()
+        widgets["notes_header"].grid_remove()
         widgets["notes_text"].grid_remove()
         widgets["attachments_header"].grid_remove()
         widgets["attachments_frame"].grid_remove()
@@ -396,6 +444,13 @@ def save_selected_node(state):
     set_status(state, f"Saved {node_id}.")
 
 
+def handle_notes_save_shortcut(state, event):
+    """Save the selected node from the notes editor."""
+
+    save_selected_node(state)
+    return "break"
+
+
 def commit_detail_changes(state):
     """Commit the current editor state before changing selection or closing."""
 
@@ -453,6 +508,21 @@ def open_selected_attachment(state):
     open_path(path)
 
 
+def copy_notes_path(state):
+    path = get_notes_path(state)
+    if path is None:
+        return
+    copy_text_to_clipboard(state, path)
+    set_status(state, "Copied notes path.")
+
+
+def open_notes_path(state):
+    path = get_notes_path(state)
+    if path is None:
+        return
+    open_path(path)
+
+
 def copy_attachments_folder_path(state):
     path = get_attachments_folder_path(state)
     if path is None:
@@ -478,6 +548,18 @@ def get_attachments_folder_path(state):
         return None
 
     return str(projectio.get_node_dir(state["project_dir"], node_id) / "attachments")
+
+
+def get_notes_path(state):
+    node_id = state.get("selected_node_id")
+    if node_id is None:
+        return None
+
+    node = state["graph_data"]["nodes"].get(node_id)
+    if node is None or not node.get("materialized"):
+        return None
+
+    return str(projectio.get_node_dir(state["project_dir"], node_id) / "notes.txt")
 
 
 def copy_text_to_clipboard(state, text):
@@ -524,3 +606,13 @@ def generate_node_id(state):
 
 def set_status(state, text):
     state["status_text"].set(text)
+
+
+def format_created_text(created_at):
+    """Format a unix timestamp as local YYYY-MM-DD."""
+
+    if not created_at:
+        return "created: unknown"
+
+    dt = datetime.fromtimestamp(created_at)
+    return f"created: {dt.strftime('%Y-%m-%d')}"

@@ -84,3 +84,15 @@ def test_materialize_and_save_node_creates_expected_files(tmp_path):
     assert (node_dir / "attachments").exists()
     detail = projectio.load_materialized_node_detail(project_dir, "node-0001")
     assert detail["node_json"]["title"] == "Saved Title"
+
+
+def test_project_viewport_round_trips_in_project_json(tmp_path):
+    project_dir = tmp_path / ".genenote"
+
+    projectio.ensure_project_structure(project_dir)
+    projectio.save_project_viewport(project_dir, 125, -40)
+
+    assert projectio.load_project_viewport(project_dir) == {
+        "x": 125,
+        "y": -40,
+    }
