@@ -13,4 +13,6 @@ venv/
 .focus-explorer/
 .pycard/
 .zookeep/
+.genenote/
+.pytest_tmp/
 zookeeper-report.json
