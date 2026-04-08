@@ -1659,13 +1659,24 @@ def _find_nodes_in_screen_rect(x1, y1, x2, y2):
     top = min(y1, y2)
     bottom = max(y1, y2)
     node_ids = []
+    radius = render["node_radius"]
 
     for node_id, node in graph_data["nodes"].items():
         screen_x, screen_y = _world_to_screen(node["x"], node["y"])
-        if left <= screen_x <= right and top <= screen_y <= bottom:
+        if _circle_intersects_rect(screen_x, screen_y, radius, left, top, right, bottom):
             node_ids.append(node_id)
 
     return node_ids
+
+
+def _circle_intersects_rect(cx, cy, radius, left, top, right, bottom):
+    """Return True when a circle intersects an axis-aligned rectangle."""
+
+    nearest_x = min(max(cx, left), right)
+    nearest_y = min(max(cy, top), bottom)
+    dx = cx - nearest_x
+    dy = cy - nearest_y
+    return (dx * dx) + (dy * dy) <= (radius * radius)
 
 
 def _ensure_lease(owner):
