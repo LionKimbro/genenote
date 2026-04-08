@@ -1,6 +1,7 @@
 """Filesystem storage for Genenote projects."""
 
 import json
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -228,6 +229,25 @@ def list_attachments(project_dir, node_id):
     return attachments
 
 
+def copy_files_into_node_attachments(project_dir, node_id, source_paths):
+    """Copy dropped files into a node's attachments directory."""
+
+    attachments_dir = get_node_dir(project_dir, node_id) / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+
+    copied = []
+    for source_path in source_paths:
+        source = Path(source_path)
+        if not source.exists() or not source.is_file():
+            continue
+
+        target = build_unique_attachment_path(attachments_dir, source.name)
+        shutil.copy2(source, target)
+        copied.append(str(target))
+
+    return copied
+
+
 def get_project_file(project_dir):
     return project_dir / "project.json"
 
@@ -246,6 +266,24 @@ def get_nodes_root(project_dir):
 
 def get_node_dir(project_dir, node_id):
     return get_nodes_root(project_dir) / node_id
+
+
+def build_unique_attachment_path(attachments_dir, filename):
+    """Return a non-colliding path preserving the original filename."""
+
+    candidate = attachments_dir / filename
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    index = 1
+
+    while True:
+        candidate = attachments_dir / f"{stem} ({index}){suffix}"
+        if not candidate.exists():
+            return candidate
+        index += 1
 
 
 def normalize_coordinates(coords):

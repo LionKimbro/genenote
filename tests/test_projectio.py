@@ -96,3 +96,24 @@ def test_project_viewport_round_trips_in_project_json(tmp_path):
         "x": 125,
         "y": -40,
     }
+
+
+def test_copy_files_into_node_attachments_handles_name_collisions(tmp_path):
+    project_dir = tmp_path / ".genenote"
+    node = {"id": "node-0001", "title": "Node", "materialized": False}
+    projectio.materialize_node(project_dir, node)
+
+    source_a = tmp_path / "sample.txt"
+    source_b = tmp_path / "sample2.txt"
+    source_a.write_text("a", encoding="utf-8")
+    source_b.write_text("b", encoding="utf-8")
+
+    copied_one = projectio.copy_files_into_node_attachments(project_dir, "node-0001", [source_a])
+    copied_two = projectio.copy_files_into_node_attachments(project_dir, "node-0001", [source_a, source_b])
+
+    names = sorted(path.name for path in (projectio.get_node_dir(project_dir, "node-0001") / "attachments").iterdir())
+    assert copied_one
+    assert copied_two
+    assert "sample.txt" in names
+    assert "sample (1).txt" in names
+    assert "sample2.txt" in names

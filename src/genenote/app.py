@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
+import tkinterdnd2
+
 from genenote import nodebrowser
 from genenote import projectio
 
@@ -18,7 +20,7 @@ def launch_app(execroot):
     """Launch the standalone application."""
 
     state = create_state(execroot)
-    root = tk.Tk()
+    root = tkinterdnd2.Tk()
     build_window(state, root)
     root.mainloop()
 
@@ -62,6 +64,7 @@ def build_window(state, root):
     window.protocol("WM_DELETE_WINDOW", lambda: handle_close(state))
 
     _build_layout(state)
+    _configure_file_drop(state)
     _configure_nodebrowser(state)
     refresh_detail_pane(state)
     return window
@@ -313,6 +316,23 @@ def _configure_nodebrowser(state):
     )
 
 
+def _configure_file_drop(state):
+    """Register file-drop handling across the application surface."""
+
+    window = state["window"]
+    if not hasattr(window, "drop_target_register"):
+        return
+
+    for widget in iter_drop_widgets(window):
+        if not hasattr(widget, "drop_target_register"):
+            continue
+        try:
+            widget.drop_target_register(tkinterdnd2.DND_FILES)
+            widget.dnd_bind("<<Drop>>", lambda event: handle_drop_files(state, event))
+        except tk.TclError:
+            return
+
+
 def handle_single_selection_changed(state, node_id):
     """React to canvas selection changes."""
 
@@ -335,6 +355,40 @@ def handle_viewport_changed(state, offset_x, offset_y):
     state["project_viewport"]["x"] = offset_x
     state["project_viewport"]["y"] = offset_y
     projectio.save_project_viewport(state["project_dir"], offset_x, offset_y)
+
+
+def handle_drop_files(state, event):
+    """Handle dropping files anywhere on the app."""
+
+    node_id = state.get("selected_node_id")
+    if node_id is None:
+        set_status(state, "Select a node before dropping files.")
+        return "break"
+
+    node = state["graph_data"]["nodes"].get(node_id)
+    if node is None:
+        set_status(state, "Selected node is no longer available.")
+        return "break"
+
+    file_paths = [path for path in state["window"].tk.splitlist(event.data) if Path(path).is_file()]
+    if not file_paths:
+        set_status(state, "Drop one or more files to attach them.")
+        return "break"
+
+    if not node.get("materialized"):
+        node["title"] = state["widgets"]["title_var"].get().strip() or node_id
+        projectio.materialize_node(state["project_dir"], node)
+        projectio.save_materialized_node(state["project_dir"], node_id, node["title"], "")
+        projectio.write_project_graph(state["project_dir"], state["graph_data"])
+
+    copied = projectio.copy_files_into_node_attachments(state["project_dir"], node_id, file_paths)
+    refresh_detail_pane(state)
+    nodebrowser.redraw_all()
+    if copied:
+        set_status(state, f"Attached {len(copied)} file(s) to {node_id}.")
+    else:
+        set_status(state, "No files were attached.")
+    return "break"
 
 
 def refresh_detail_pane(state):
@@ -449,6 +503,14 @@ def handle_notes_save_shortcut(state, event):
 
     save_selected_node(state)
     return "break"
+
+
+def iter_drop_widgets(root_widget):
+    """Yield the application widgets that should accept file drops."""
+
+    yield root_widget
+    for child in root_widget.winfo_children():
+        yield from iter_drop_widgets(child)
 
 
 def commit_detail_changes(state):
