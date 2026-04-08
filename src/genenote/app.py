@@ -63,9 +63,11 @@ def build_window(state, root):
     state["window"] = window
     window.protocol("WM_DELETE_WINDOW", lambda: handle_close(state))
 
+    _build_menubar(state)
     _build_layout(state)
     _configure_file_drop(state)
     _configure_nodebrowser(state)
+    _bind_global_shortcuts(state)
     refresh_detail_pane(state)
     return window
 
@@ -86,6 +88,40 @@ def handle_close(state):
 
     commit_detail_changes(state)
     state["window"].destroy()
+
+
+def _build_menubar(state):
+    """Build the main application menubar."""
+
+    window = state["window"]
+    menubar = tk.Menu(window)
+
+    file_menu = tk.Menu(menubar, tearoff=0)
+    file_menu.add_command(
+        label="Quit",
+        accelerator="Ctrl+Q",
+        command=lambda: handle_close(state),
+    )
+    menubar.add_cascade(label="File", menu=file_menu)
+
+    help_menu = tk.Menu(menubar, tearoff=0)
+    help_menu.add_command(
+        label="How To Make Nodes",
+        accelerator="F1",
+        command=lambda: show_node_help_window(state),
+    )
+    menubar.add_cascade(label="Help", menu=help_menu)
+
+    window.configure(menu=menubar)
+    state["widgets"]["menubar"] = menubar
+
+
+def _bind_global_shortcuts(state):
+    """Bind top-level keyboard shortcuts."""
+
+    window = state["window"]
+    window.bind("<Control-q>", lambda event: handle_quit_shortcut(state, event))
+    window.bind("<F1>", lambda event: handle_help_shortcut(state, event))
 
 
 def _build_layout(state):
@@ -317,6 +353,20 @@ def _configure_nodebrowser(state):
     )
 
 
+def handle_quit_shortcut(state, event):
+    """Close the app from the keyboard."""
+
+    handle_close(state)
+    return "break"
+
+
+def handle_help_shortcut(state, event):
+    """Open the node-browser help window from the keyboard."""
+
+    show_node_help_window(state)
+    return "break"
+
+
 def _configure_file_drop(state):
     """Register file-drop handling across the application surface."""
 
@@ -508,6 +558,61 @@ def handle_notes_save_shortcut(state, event):
 
     save_selected_node(state)
     return "break"
+
+
+def show_node_help_window(state):
+    """Show node-browser help in a simple Toplevel."""
+
+    existing = state["widgets"].get("help_window")
+    if existing is not None and existing.winfo_exists():
+        existing.lift()
+        existing.focus_set()
+        return
+
+    window = tk.Toplevel(state["window"])
+    window.title("How To Make Nodes")
+    window.geometry("560x360")
+    window.transient(state["window"])
+
+    frame = ttk.Frame(window, padding=10)
+    frame.grid(row=0, column=0, sticky="nsew")
+    window.rowconfigure(0, weight=1)
+    window.columnconfigure(0, weight=1)
+    frame.rowconfigure(0, weight=1)
+    frame.columnconfigure(0, weight=1)
+
+    text = tk.Text(frame, wrap="word")
+    text.grid(row=0, column=0, sticky="nsew")
+    text.insert("1.0", build_node_help_text())
+    text.configure(state="disabled")
+
+    close_button = ttk.Button(frame, text="close", command=window.destroy)
+    close_button.grid(row=1, column=0, sticky="e", pady=(10, 0))
+
+    state["widgets"]["help_window"] = window
+    window.protocol("WM_DELETE_WINDOW", window.destroy)
+
+
+def build_node_help_text():
+    """Return help text for the node browser."""
+
+    return (
+        "How To Make Nodes\n\n"
+        "Add a node:\n"
+        "- Double-click empty canvas space to create a node there.\n"
+        "- Or press 'n' to enter node creation mode, then click empty space.\n\n"
+        "Connect or disconnect nodes:\n"
+        "- Hold Shift.\n"
+        "- Press on a source node and drag toward another node.\n"
+        "- Release over the target node.\n"
+        "- If no edge exists, this creates one.\n"
+        "- If an edge already exists, this removes it.\n\n"
+        "Other useful things:\n"
+        "- Click a node to select it.\n"
+        "- Drag a node to move it.\n"
+        "- Drag on empty space to marquee-select nodes.\n"
+        "- Hold Shift and drag empty space to pan the viewport.\n"
+    )
 
 
 def iter_drop_widgets(root_widget):
