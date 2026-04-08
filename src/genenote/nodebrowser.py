@@ -25,6 +25,7 @@ raw = {
     "event_name": None,
     "x": 0,
     "y": 0,
+    "ms": 0,
     "key": None,
     "shift_down": False,
     "button_1_down": False,
@@ -36,6 +37,7 @@ raw_prev = {
     "event_name": None,
     "x": 0,
     "y": 0,
+    "ms": 0,
     "key": None,
     "shift_down": False,
     "button_1_down": False,
@@ -56,6 +58,8 @@ derived = {
     "over_empty": True,
     "click_completed": False,
     "click_empty": False,
+    "double_click_completed": False,
+    "double_click_node_id": None,
     "drag_rect": None,
     "drag_distance": 0,
     "drag_threshold_crossed": False,
@@ -80,6 +84,8 @@ interaction = {
     "press_node_id": None,
     "press_consumed": False,
     "ignore_release": False,
+    "last_click_release_ms": None,
+    "last_click_node_id": None,
 }
 
 selection = {
@@ -128,6 +134,7 @@ render = {
     "node_title_color": "#f4f4f4",
     "node_title_dim_color": "#8d8d8d",
     "node_title_offset_y": 42,
+    "double_click_window_ms": 500,
 }
 
 canvas_items = {
@@ -183,6 +190,8 @@ def _derived_defaults():
         "over_empty": True,
         "click_completed": False,
         "click_empty": False,
+        "double_click_completed": False,
+        "double_click_node_id": None,
         "drag_rect": None,
         "drag_distance": 0,
         "drag_threshold_crossed": False,
@@ -216,6 +225,7 @@ def reset_runtime():
         target["event_name"] = None
         target["x"] = 0
         target["y"] = 0
+        target["ms"] = 0
         target["key"] = None
         target["shift_down"] = False
         target["button_1_down"] = False
@@ -235,6 +245,8 @@ def reset_runtime():
     derived["over_empty"] = True
     derived["click_completed"] = False
     derived["click_empty"] = False
+    derived["double_click_completed"] = False
+    derived["double_click_node_id"] = None
     derived["drag_rect"] = None
     derived["drag_threshold_crossed"] = False
     derived_prev["drag_distance"] = 0
@@ -250,6 +262,8 @@ def reset_runtime():
     derived_prev["over_empty"] = True
     derived_prev["click_completed"] = False
     derived_prev["click_empty"] = False
+    derived_prev["double_click_completed"] = False
+    derived_prev["double_click_node_id"] = None
     derived_prev["drag_rect"] = None
     derived_prev["drag_threshold_crossed"] = False
 
@@ -266,6 +280,8 @@ def reset_runtime():
     interaction["press_node_id"] = None
     interaction["press_consumed"] = False
     interaction["ignore_release"] = False
+    interaction["last_click_release_ms"] = None
+    interaction["last_click_node_id"] = None
 
     selection["group_selected_ids"] = []
 
@@ -288,6 +304,7 @@ def _init_tokenizers():
         _make_tokenizer("hit-test-tokenizer", _run_hit_test_tokenizer),
         _make_tokenizer("empty-space-tokenizer", _run_empty_space_tokenizer),
         _make_tokenizer("click-tokenizer", _run_click_tokenizer),
+        _make_tokenizer("double-click-tokenizer", _run_double_click_tokenizer),
     ]
 
 
@@ -471,6 +488,7 @@ def _update_raw(event_name, event):
     if event_name.startswith("button-1"):
         raw["x"] = getattr(event, "x", raw["x"])
         raw["y"] = getattr(event, "y", raw["y"])
+    raw["ms"] = getattr(event, "time", raw["ms"])
     raw["key"] = getattr(event, "keysym", None)
     state = getattr(event, "state", 0)
     raw["shift_down"] = bool(state & 0x0001)
@@ -561,6 +579,30 @@ def _run_click_tokenizer():
     hover_node_id = derived["hover_node_id"]
     if press_node_id is None and derived["over_empty"]:
         derived["click_empty"] = True
+
+
+def _run_double_click_tokenizer():
+    if not derived["click_completed"]:
+        return
+
+    click_node_id = derived["hover_node_id"]
+    if click_node_id is None:
+        interaction["last_click_release_ms"] = raw["ms"]
+        interaction["last_click_node_id"] = None
+        return
+
+    last_click_ms = interaction["last_click_release_ms"]
+    last_click_node_id = interaction["last_click_node_id"]
+    if (
+        last_click_ms is not None
+        and last_click_node_id == click_node_id
+        and (raw["ms"] - last_click_ms) <= render["double_click_window_ms"]
+    ):
+        derived["double_click_completed"] = True
+        derived["double_click_node_id"] = click_node_id
+
+    interaction["last_click_release_ms"] = raw["ms"]
+    interaction["last_click_node_id"] = click_node_id
 
 
 def run_cycle():
