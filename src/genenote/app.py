@@ -231,6 +231,7 @@ def _build_layout(state):
     )
     attachments_tree.grid(row=0, column=0, sticky="nsew")
     attachments_tree.bind("<<TreeviewSelect>>", lambda event: handle_attachment_selected(state))
+    attachments_tree.bind("<Double-1>", lambda event: handle_attachment_double_click(state, event))
 
     attachment_buttons = ttk.Frame(attachments_frame)
     attachment_buttons.grid(row=0, column=1, sticky="ns", padx=(8, 0))
@@ -380,9 +381,13 @@ def handle_drop_files(state, event):
         projectio.materialize_node(state["project_dir"], node)
         projectio.save_materialized_node(state["project_dir"], node_id, node["title"], "")
         projectio.write_project_graph(state["project_dir"], state["graph_data"])
+    else:
+        save_selected_node(state)
 
     copied = projectio.copy_files_into_node_attachments(state["project_dir"], node_id, file_paths)
     refresh_detail_pane(state)
+    if copied:
+        select_attachment_path(state, copied[-1])
     nodebrowser.redraw_all()
     if copied:
         set_status(state, f"Attached {len(copied)} file(s) to {node_id}.")
@@ -553,6 +558,26 @@ def handle_attachment_selected(state):
     tree = state["widgets"]["attachments_tree"]
     selection = tree.selection()
     state["selected_attachment_path"] = selection[0] if selection else None
+
+
+def handle_attachment_double_click(state, event):
+    """Open the selected attachment on double-click."""
+
+    handle_attachment_selected(state)
+    open_selected_attachment(state)
+
+
+def select_attachment_path(state, attachment_path):
+    """Select one attachment row in the tree if it exists."""
+
+    tree = state["widgets"]["attachments_tree"]
+    if not tree.exists(attachment_path):
+        return
+
+    tree.selection_set(attachment_path)
+    tree.focus(attachment_path)
+    tree.see(attachment_path)
+    state["selected_attachment_path"] = attachment_path
 
 
 def copy_selected_attachment_path(state):
