@@ -586,7 +586,11 @@ def _run_double_click_tokenizer():
         return
 
     click_node_id = derived["hover_node_id"]
-    if click_node_id is None:
+    click_target = click_node_id
+    if click_node_id is None and derived["click_empty"]:
+        click_target = "__empty__"
+
+    if click_target is None:
         interaction["last_click_release_ms"] = raw["ms"]
         interaction["last_click_node_id"] = None
         return
@@ -595,14 +599,14 @@ def _run_double_click_tokenizer():
     last_click_node_id = interaction["last_click_node_id"]
     if (
         last_click_ms is not None
-        and last_click_node_id == click_node_id
+        and last_click_node_id == click_target
         and (raw["ms"] - last_click_ms) <= render["double_click_window_ms"]
     ):
         derived["double_click_completed"] = True
         derived["double_click_node_id"] = click_node_id
 
     interaction["last_click_release_ms"] = raw["ms"]
-    interaction["last_click_node_id"] = click_node_id
+    interaction["last_click_node_id"] = click_target
 
 
 def run_cycle():
@@ -1371,10 +1375,15 @@ def _run_pan_organism(organism):
 
 
 def _run_node_create_organism(organism):
-    if raw["event_name"] != "button-1-release":
-        return
+    wants_mode_create = raw["event_name"] == "button-1-release" and g["mode"] == "CREATE_NODE"
+    wants_double_click_create = (
+        derived["double_click_completed"]
+        and derived["double_click_node_id"] is None
+        and derived["over_empty"]
+        and g["mode"] == "IDLE"
+    )
 
-    if g["mode"] != "CREATE_NODE":
+    if not wants_mode_create and not wants_double_click_create:
         return
 
     if interaction["ignore_release"] or interaction["press_consumed"]:
@@ -1393,7 +1402,8 @@ def _run_node_create_organism(organism):
     emit_effect("create-node", {"x": node_x, "y": node_y})
     next_id = _peek_next_node_id()
     emit_effect("set-single-selection", {"node_id": next_id})
-    emit_effect("set-mode", {"mode": "IDLE"})
+    if g["mode"] == "CREATE_NODE":
+        emit_effect("set-mode", {"mode": "IDLE"})
 
 
 def _run_edge_create_organism(organism):
