@@ -1,0 +1,308 @@
+{
+  "document": {
+    "document-id": "genenote.spec.core.v1",
+    "title": "Genenote Core Specification",
+    "tags": [
+      "genenote",
+      "nodes",
+      "filesystem",
+      "creative-tools"
+    ],
+    "purpose": "Define the filesystem structure, node lifecycle, and JSON formats for the Genenote Creative Genealogy Notebook system.",
+    "status": "draft"
+  },
+  "core_concepts": {
+    "node_definition": "A node is identified by its node_id. In runtime, it exists as a visual object with position. When materialized, it corresponds to a folder on disk.",
+    "materialization": "A node becomes materialized when its folder and files are created on disk. Unmaterialized nodes exist only in memory and are not persisted.",
+    "ephemerality": "Unmaterialized nodes are ephemeral and are discarded when the program exits. They do not appear in persisted data.",
+    "graph_model": {
+      "runtime": "graph_data contains nodes and edges in memory and is the authoritative runtime representation.",
+      "persistence": "links.json is the authoritative persisted representation of edges between materialized nodes."
+    }
+  },
+  "filesystem_layout": {
+    "root": ".genenote/",
+    "structure": {
+      "project_file": "project.json",
+      "links_file": "links.json",
+      "nodes_directory": "nodes/",
+      "node_directory_pattern": "nodes/{node_id}/"
+    }
+  },
+  "project_json": {
+    "description": "Top-level project metadata.",
+    "schema": {
+      "project_id": "string",
+      "created_at": "unix_timestamp",
+      "version": "string",
+      "config": {
+        "nodes_root": "string (optional override path)",
+        "attachments_subdir": "string (default: 'attachments')"
+      }
+    }
+  },
+  "links_json": {
+    "description": "Persisted directed edges between materialized nodes.",
+    "schema": {
+      "edges": [
+        {
+          "from": "node_id",
+          "to": "node_id"
+        }
+      ]
+    },
+    "rules": [
+      "Only materialized nodes may appear in links.json",
+      "Edges involving unmaterialized nodes are never persisted",
+      "At load time, links.json populates graph_data edges"
+    ]
+  },
+  "node_directory": {
+    "description": "Each materialized node corresponds to a folder named after its node_id.",
+    "structure": {
+      "node_json": "node.json",
+      "data_json": "data.json",
+      "notes_file": "notes.txt",
+      "attachments_dir": "attachments/"
+    }
+  },
+  "node_json": {
+    "description": "Identity and lightweight metadata for a node.",
+    "schema": {
+      "node_id": "string",
+      "created_at": "unix_timestamp",
+      "title": "string",
+      "tags": [
+        "string"
+      ]
+    },
+    "rules": [
+      "node_id must match folder name",
+      "node_json must exist for all materialized nodes",
+      "node_json should remain lightweight and not store large data"
+    ]
+  },
+  "data_json": {
+    "description": "Structured key-value storage for the node.",
+    "schema": {
+      "arbitrary_keys": "any JSON value"
+    },
+    "rules": [
+      "May be empty {}",
+      "Used for structured data, not freeform text"
+    ]
+  },
+  "notes_txt": {
+    "description": "Freeform textual notes associated with the node.",
+    "rules": [
+      "UTF-8 text file",
+      "Edited via UI text pane",
+      "May be empty"
+    ]
+  },
+  "attachments": {
+    "description": "Directory containing arbitrary files associated with the node.",
+    "rules": [
+      "Files are copied into attachments directory",
+      "Original filenames are preserved",
+      "Name collisions are resolved by suffixing: ' (1)', ' (2)', etc.",
+      "No file overwrites are allowed"
+    ]
+  },
+  "node_lifecycle": {
+    "creation": {
+      "description": "Node is created in memory with ID and position only.",
+      "state": {
+        "materialized": false
+      }
+    },
+    "materialization": {
+      "triggers": [
+        "User presses [CREATE FOLDER]",
+        "User drops files into node (drag-and-drop)"
+      ],
+      "actions": [
+        "Create node directory",
+        "Write node.json",
+        "Create empty data.json",
+        "Create empty notes.txt",
+        "Create attachments/ directory"
+      ],
+      "state": {
+        "materialized": true
+      }
+    },
+    "deletion": {
+      "unmaterialized": "Node disappears with no filesystem effects",
+      "materialized": "Node folder may be deleted (implementation-defined)"
+    }
+  },
+  "runtime_model": {
+    "graph_data": {
+      "nodes": {
+        "node_id": {
+          "id": "string",
+          "x": "number",
+          "y": "number",
+          "title": "string (optional, cached)",
+          "materialized": "boolean"
+        }
+      },
+      "edges": [
+        {
+          "from": "node_id",
+          "to": "node_id"
+        }
+      ]
+    }
+  },
+  "ui_behavior": {
+    "unmaterialized_nodes": {
+      "appearance": [
+        "dimmed color",
+        "reduced visual intensity"
+      ],
+      "edges": [
+        "edges connected to unmaterialized nodes are dimmed"
+      ]
+    },
+    "materialized_nodes": {
+      "appearance": [
+        "full brightness",
+        "normal styling"
+      ]
+    }
+  },
+  "drag_and_drop": {
+    "description": "File drop interaction onto a node.",
+    "behavior": [
+      "If node is unmaterialized, materialize it automatically",
+      "Copy dropped files into attachments/",
+      "Resolve filename collisions safely",
+      "Refresh attachments UI"
+    ]
+  },
+  "ui_layout": {
+    "description": "Defines the primary user interface layout and pane behavior for Genenote.",
+    "main_window": {
+      "layout": "horizontal_split",
+      "left_pane": "node_browser",
+      "right_pane": "node_detail"
+    },
+    "node_browser": {
+      "description": "Interactive canvas for creating, selecting, and linking nodes.",
+      "component": "tkinter.Canvas",
+      "responsibilities": [
+        "display nodes and edges",
+        "handle node creation and positioning",
+        "handle selection (single and group)",
+        "handle edge creation and deletion",
+        "visualize node materialization state (dimmed vs full)",
+        "visualize edge materialization state (dimmed vs full)"
+      ]
+    },
+    "node_detail": {
+      "description": "Displays and edits the contents of the currently selected node.",
+      "selection_behavior": [
+        "If no node is selected, pane may be empty or show placeholder",
+        "If a node is selected, pane reflects that node's state"
+      ],
+      "states": {
+        "unmaterialized": {
+          "description": "Node exists only in memory.",
+          "components": [
+            {
+              "type": "Entry",
+              "id": "title_entry",
+              "style": "large_text",
+              "binding": "graph_data.nodes[node_id].title"
+            },
+            {
+              "type": "Button",
+              "id": "create_folder_button",
+              "label": "CREATE FOLDER",
+              "action": "materialize_node"
+            }
+          ]
+        },
+        "materialized": {
+          "description": "Node exists on disk.",
+          "components": [
+            {
+              "type": "Entry",
+              "id": "title_entry",
+              "style": "large_text",
+              "binding": "node.json.title"
+            },
+            {
+              "type": "Row",
+              "id": "path_row",
+              "components": [
+                {
+                  "type": "Label",
+                  "id": "folder_path_label",
+                  "binding": "node_folder_path",
+                  "editable": false
+                },
+                {
+                  "type": "Button",
+                  "id": "copy_path_button",
+                  "label": "copy",
+                  "action": "copy_to_clipboard(node_folder_path)"
+                },
+                {
+                  "type": "Button",
+                  "id": "open_path_button",
+                  "label": "open",
+                  "action": "open_in_system_file_browser(node_folder_path)"
+                }
+              ]
+            },
+            {
+              "type": "Text",
+              "id": "notes_text",
+              "rows": 10,
+              "binding": "notes.txt"
+            },
+            {
+              "type": "Row",
+              "id": "attachments_section",
+              "components": [
+                {
+                  "type": "Tree",
+                  "id": "attachments_tree",
+                  "binding": "attachments/",
+                  "selection": "single"
+                },
+                {
+                  "type": "Column",
+                  "id": "attachments_actions",
+                  "components": [
+                    {
+                      "type": "Button",
+                      "id": "copy_attachment_path",
+                      "label": "copy",
+                      "action": "copy_selected_attachment_path"
+                    },
+                    {
+                      "type": "Button",
+                      "id": "open_attachment",
+                      "label": "open",
+                      "action": "open_selected_attachment"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "Button",
+              "id": "save_button",
+              "label": "save",
+              "action": "save_node_changes"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
