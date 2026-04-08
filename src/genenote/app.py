@@ -10,6 +10,7 @@ import tkinterdnd2
 
 from genenote import nodebrowser
 from genenote import projectio
+from genenote import windows as genenote_windows
 
 
 WINDOW_TITLE = "Genenote"
@@ -20,6 +21,7 @@ def launch_app(execroot):
     """Launch the standalone application."""
 
     state = create_state(execroot)
+    genenote_windows.set_windows_appusermodel_id()
     root = tkinterdnd2.Tk()
     build_window(state, root)
     root.mainloop()
@@ -62,6 +64,7 @@ def build_window(state, root):
 
     state["window"] = window
     window.protocol("WM_DELETE_WINDOW", lambda: handle_close(state))
+    genenote_windows.set_windows_tk_icon(window)
 
     _build_menubar(state)
     _build_layout(state)
