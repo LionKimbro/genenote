@@ -1228,7 +1228,6 @@ def _run_pointer_focus_organism(organism):
         return
 
     emit_effect("focus-canvas")
-    emit_effect("consume-pointer-gesture")
 
 
 def _run_mode_key_organism(organism):
