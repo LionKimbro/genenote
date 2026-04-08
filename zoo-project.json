@@ -1,0 +1,13 @@
+{
+  "zookeep-project-guid": "69c21282-30c1-4f94-871d-891d45c9027e",
+  "name": "genenote",
+  "repo-type": "python-2026-03",
+  "license": "CC0-1.0",
+  "repository": {
+    "name": "genenote",
+    "visibility": "public"
+  },
+  "python-package": {
+    "name": "genenote"
+  }
+}
