@@ -5,4 +5,5 @@ title: Coordinates for GeneNote
 Zoo Project GUID: f54183fa-bc63-447e-949f-217107bff49f
 ZooKeep Repository GUID: 69c21282-30c1-4f94-871d-891d45c9027e
 Conversation with Wing-Cat: https://chatgpt.com/c/69d5e229-22cc-83e8-812b-b0046af005ca
+.ico Development: https://chatgpt.com/c/69d69677-fdc4-83e8-beb9-727a6c4ebaa1
 
