@@ -1,0 +1,15 @@
+{
+  "todo": [
+    {
+      "id": "icon-resolutions-for-windows-taskbar",
+      "title": "Rebuild favicon.ico with better Windows taskbar resolutions",
+      "status": "open",
+      "priority": "medium",
+      "notes": [
+        "Most important missing size right now appears to be 24x24 for the Windows taskbar group icon.",
+        "When rebuilding favicon.ico, be sure to include at least these embedded sizes: 16x16, 20x20, 24x24, 32x32, 40x40, 48x48, 64x64, 128x128, and 256x256.",
+        "After updating the icon, replace both the repo asset copy and the packaged source copy under src/genenote/assets/icon/favicon.ico."
+      ]
+    }
+  ]
+}

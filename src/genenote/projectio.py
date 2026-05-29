@@ -15,6 +15,8 @@ def ensure_project_structure(project_dir):
 
     project_dir.mkdir(parents=True, exist_ok=True)
     get_nodes_root(project_dir).mkdir(parents=True, exist_ok=True)
+    get_inbox_dir(project_dir).mkdir(parents=True, exist_ok=True)
+    get_outbox_dir(project_dir).mkdir(parents=True, exist_ok=True)
 
     if not get_project_file(project_dir).exists():
         write_json_file(
@@ -248,6 +250,24 @@ def copy_files_into_node_attachments(project_dir, node_id, source_paths):
     return copied
 
 
+def write_patchboard_message(project_dir, channel, signal):
+    """Write a FileTalk/Patchboard message into the project's outbox."""
+
+    outbox_dir = get_outbox_dir(project_dir)
+    outbox_dir.mkdir(parents=True, exist_ok=True)
+
+    message = {
+        "channel": channel,
+        "signal": signal,
+        "timestamp": str(time.time()),
+    }
+
+    filename = _build_patchboard_message_filename()
+    message_path = outbox_dir / filename
+    write_json_file(message_path, message)
+    return message_path
+
+
 def get_project_file(project_dir):
     return project_dir / "project.json"
 
@@ -262,6 +282,14 @@ def get_links_file(project_dir):
 
 def get_nodes_root(project_dir):
     return project_dir / "nodes"
+
+
+def get_inbox_dir(project_dir):
+    return project_dir / "inbox"
+
+
+def get_outbox_dir(project_dir):
+    return project_dir / "outbox"
 
 
 def get_node_dir(project_dir, node_id):
@@ -308,3 +336,9 @@ def write_json_file(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
     path.write_text(text, encoding="utf-8")
+
+
+def _build_patchboard_message_filename():
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+    suffix = uuid.uuid4().hex[:8]
+    return f"{stamp}-{suffix}.json"

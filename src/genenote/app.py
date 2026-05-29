@@ -115,6 +115,14 @@ def _build_menubar(state):
     )
     menubar.add_cascade(label="Help", menu=help_menu)
 
+    patchboard_menu = tk.Menu(menubar, tearoff=0)
+    patchboard_menu.add_command(
+        label="Emit Node",
+        accelerator="Ctrl+E",
+        command=lambda: emit_selected_node_to_patchboard(state),
+    )
+    menubar.add_cascade(label="Patchboard", menu=patchboard_menu)
+
     window.configure(menu=menubar)
     state["widgets"]["menubar"] = menubar
 
@@ -124,6 +132,7 @@ def _bind_global_shortcuts(state):
 
     window = state["window"]
     window.bind("<Control-q>", lambda event: handle_quit_shortcut(state, event))
+    window.bind("<Control-e>", lambda event: handle_emit_node_shortcut(state, event))
     window.bind("<F1>", lambda event: handle_help_shortcut(state, event))
 
 
@@ -370,6 +379,13 @@ def handle_help_shortcut(state, event):
     return "break"
 
 
+def handle_emit_node_shortcut(state, event):
+    """Emit the selected node to Patchboard from the keyboard."""
+
+    emit_selected_node_to_patchboard(state)
+    return "break"
+
+
 def _configure_file_drop(state):
     """Register file-drop handling across the application surface."""
 
@@ -447,6 +463,37 @@ def handle_drop_files(state, event):
     else:
         set_status(state, "No files were attached.")
     return "break"
+
+
+def emit_selected_node_to_patchboard(state):
+    """Emit the selected materialized node as a Patchboard message."""
+
+    node_id = state.get("selected_node_id")
+    if node_id is None:
+        set_status(state, "Select a node before emitting it to Patchboard.")
+        return
+
+    node = state["graph_data"]["nodes"].get(node_id)
+    if node is None:
+        set_status(state, "Selected node is no longer available.")
+        return
+
+    if not node.get("materialized"):
+        set_status(state, "Materialize the selected node before emitting it.")
+        return
+
+    save_selected_node(state)
+
+    node_path = str(projectio.get_node_dir(state["project_dir"], node_id).resolve())
+    message_path = projectio.write_patchboard_message(
+        state["project_dir"],
+        "node-send",
+        {
+            "node-id": node_id,
+            "path": node_path,
+        },
+    )
+    set_status(state, f"Emitted {node_id} to Patchboard: {message_path.name}")
 
 
 def refresh_detail_pane(state):

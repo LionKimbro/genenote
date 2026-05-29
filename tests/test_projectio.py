@@ -117,3 +117,32 @@ def test_copy_files_into_node_attachments_handles_name_collisions(tmp_path):
     assert "sample.txt" in names
     assert "sample (1).txt" in names
     assert "sample2.txt" in names
+
+
+def test_ensure_project_structure_creates_patchboard_folders(tmp_path):
+    project_dir = tmp_path / ".genenote"
+
+    projectio.ensure_project_structure(project_dir)
+
+    assert projectio.get_inbox_dir(project_dir).exists()
+    assert projectio.get_outbox_dir(project_dir).exists()
+
+
+def test_write_patchboard_message_writes_core_message_to_outbox(tmp_path):
+    project_dir = tmp_path / ".genenote"
+
+    message_path = projectio.write_patchboard_message(
+        project_dir,
+        "node-send",
+        {
+            "node-id": "node-0001",
+            "path": str((project_dir / "nodes" / "node-0001").resolve()),
+        },
+    )
+
+    message = projectio.read_json_file(message_path, None)
+    assert message_path.parent == projectio.get_outbox_dir(project_dir)
+    assert message["channel"] == "node-send"
+    assert message["signal"]["node-id"] == "node-0001"
+    assert "path" in message["signal"]
+    assert "timestamp" in message
